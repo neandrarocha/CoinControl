@@ -60,6 +60,10 @@ export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
                    <p className="text-[#848E9C] text-xs mb-1 uppercase font-semibold">Preço Médio</p>
                    <p className="font-mono text-base">{formatCurrency(stat.averagePrice)}</p>
                  </div>
+                 <div>
+                   <p className="text-[#848E9C] text-xs mb-1 uppercase font-semibold">Valor Aplicado</p>
+                   <p className="font-mono text-base">{formatCurrency(stat.totalInvested)}</p>
+                 </div>
               </div>
             </div>
           ))}
@@ -78,6 +82,7 @@ export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
                 <th className="p-4 font-bold tracking-wide">Ativo</th>
                 <th className="p-4 font-bold tracking-wide text-right">Quantidade</th>
                 <th className="p-4 font-bold tracking-wide text-right">Preço Médio</th>
+                <th className="p-4 font-bold tracking-wide text-right">Valor Aplicado</th>
                 <th className="p-4 font-bold tracking-wide text-right">Valor Atual</th>
                 <th className="p-4 font-bold tracking-wide text-right">P&L</th>
               </tr>
@@ -93,6 +98,7 @@ export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
                   </td>
                   <td className="p-4 text-right font-mono text-base">{formatCrypto(stat.totalQuantity)}</td>
                   <td className="p-4 text-right font-mono text-base">{formatCurrency(stat.averagePrice)}</td>
+                  <td className="p-4 text-right font-mono text-base">{formatCurrency(stat.totalInvested)}</td>
                   <td className={`p-4 text-right font-mono text-base font-bold ${stat.asset === 'BTC' ? 'text-[#F3BA2F]' : ''}`}>{formatCurrency(stat.currentValue)}</td>
                   <td className={`p-4 text-right font-mono text-base font-bold ${stat.profitOrLoss >= 0 ? 'text-[#0ECB81]' : 'text-rose-500'}`}>
                     {stat.profitOrLoss >= 0 ? '+' : ''}{stat.profitOrLossPercent.toFixed(2)}%
@@ -101,7 +107,7 @@ export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
               ))}
               {stats.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-base text-[#848E9C]">Nenhum ativo na carteira</td>
+                  <td colSpan={6} className="p-8 text-center text-base text-[#848E9C]">Nenhum ativo na carteira</td>
                 </tr>
               )}
             </tbody>
