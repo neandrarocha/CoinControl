@@ -6,19 +6,23 @@ import { Transaction } from '../types';
 interface Props {
   transactions: Transaction[];
   totalCurrentValue: number;
+  currentPrices: Record<string, number>;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#0B0E11]/90 backdrop-blur-md border border-[#F3BA2F]/30 text-[#EAECEF] p-4 rounded-xl shadow-[0_4px_20px_rgba(243,186,47,0.15)] min-w-[170px]">
-        <p className="text-sm text-[#A9B1BD] mb-3 font-semibold border-b border-[#2B2F36] pb-2">{label}</p>
-        <div className="space-y-2">
+      <div className="bg-[#0B0E11]/95 backdrop-blur-md border border-[#2B2F36] text-[#EAECEF] p-4 rounded-xl shadow-2xl min-w-[200px]">
+        <p className="text-sm text-[#848E9C] mb-3 font-semibold border-b border-[#2B2F36] pb-2">{label}</p>
+        <div className="space-y-3">
           {payload.map((p: any, index: number) => (
-            <p key={index} className="text-base flex justify-between gap-4 items-center">
-              <span className="text-white font-medium">{p.name}:</span>
-              <span className="font-mono font-bold" style={{ color: p.color, textShadow: `0 0 8px ${p.color}40` }}>{formatCurrency(p.value)}</span>
-            </p>
+            <div key={index} className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }}></div>
+                <span className="text-sm font-medium text-[#EAECEF]">{p.name}:</span>
+              </div>
+              <span className="font-mono font-bold text-sm" style={{ color: p.color }}>{formatCurrency(p.value)}</span>
+            </div>
           ))}
         </div>
       </div>
@@ -27,7 +31,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export function EvolutionChart({ transactions, totalCurrentValue }: Props) {
+export function EvolutionChart({ transactions, totalCurrentValue, currentPrices }: Props) {
   if (transactions.length === 0) {
     return (
       <div className="h-64 flex items-center justify-center border border-[#2B2F36] rounded-xl bg-[#181A20]">
@@ -42,12 +46,10 @@ export function EvolutionChart({ transactions, totalCurrentValue }: Props) {
   const assetTracking: Record<string, { quantity: number; invested: number }> = {};
   let currentCumulativeInvested = 0;
 
-  const chartData = sorted.map((t, index) => {
+  const chartData = sorted.map((t) => {
     if (!assetTracking[t.asset]) {
       assetTracking[t.asset] = { quantity: 0, invested: 0 };
     }
-
-    const prevInvested = assetTracking[t.asset].invested;
 
     if (t.type === 'venda') {
       const avgPrice = assetTracking[t.asset].quantity > 0 
@@ -66,16 +68,17 @@ export function EvolutionChart({ transactions, totalCurrentValue }: Props) {
       currentCumulativeInvested += t.valuePaid;
     }
 
+    // Calculate market value based on TODAY'S prices for the quantity held AT THIS STEP
+    const marketValueAtStep = Object.entries(assetTracking).reduce((acc, [asset, data]) => {
+      return acc + (data.quantity * (currentPrices[asset] || 0));
+    }, 0);
+
     return {
       date: new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(new Date(t.date)),
       investido: Math.max(0, currentCumulativeInvested),
-      // Se for a última transação, adicionamos uma projeção até o valor atual para mostrar o crescimento/queda
-      atual: index === sorted.length - 1 ? totalCurrentValue : null
+      patrimonio: Math.max(0, marketValueAtStep)
     };
   });
-
-  // Since currentCumulativeInvested is now updated inside the map, we use it for the "Hoje" point
-  const finalCumulativeInvested = currentCumulativeInvested;
 
   // Deduplicate points by date, keeping the last one
   const uniqueDates = new Map();
@@ -85,31 +88,42 @@ export function EvolutionChart({ transactions, totalCurrentValue }: Props) {
   
   const finalData = Array.from(uniqueDates.values());
   
-  // Add a final point if the current value is different than invested to show the gap
+  // Add a final "Hoje" point
   if (finalData.length > 0) {
-    // Create a "Hoje" point to show the current divergence from invested amount safely
     finalData.push({
       date: 'Hoje',
-      investido: finalCumulativeInvested,
-      atual: totalCurrentValue
+      investido: currentCumulativeInvested,
+      patrimonio: totalCurrentValue
     });
   }
 
   return (
-    <div className="h-[350px] bg-[#181A20] rounded-xl border border-[#2B2F36] p-6 flex flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.3)]">
-      <div className="mb-6 flex items-center gap-2">
-        <div className="w-1.5 h-6 bg-[#F3BA2F] rounded-full"></div>
-        <div>
-          <h3 className="text-lg font-bold text-white uppercase tracking-wide">Evolução do Patrimônio</h3>
-          <p className="text-sm text-[#848E9C] font-semibold mt-1">Investido vs Atual</p>
+    <div className="h-[400px] bg-[#181A20] rounded-xl border border-[#2B2F36] p-6 flex flex-col shrink-0 shadow-[0_0_40px_rgba(0,0,0,0.3)]">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-6 bg-[#F3BA2F] rounded-full"></div>
+          <div>
+            <h3 className="text-lg font-bold text-white uppercase tracking-wide">Evolução do Patrimônio</h3>
+            <p className="text-xs text-[#848E9C] font-semibold mt-1">Comparativo de Valor Aplicado vs. Valor Atual</p>
+          </div>
+        </div>
+        <div className="hidden sm:flex gap-6">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-[#F3BA2F] rounded-sm"></div>
+            <span className="text-xs text-[#848E9C] font-semibold">Patrimônio</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-[#848E9C] rounded-full"></div>
+            <span className="text-xs text-[#848E9C] font-semibold">Investido</span>
+          </div>
         </div>
       </div>
-      <div className="flex-1 w-full min-h-0 mt-2">
+      <div className="flex-1 w-full min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={finalData} margin={{ top: 15, right: 10, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="colorInvestido" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#F3BA2F" stopOpacity={0.6}/>
+              <linearGradient id="colorPatrimonio" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#F3BA2F" stopOpacity={0.3}/>
                 <stop offset="95%" stopColor="#F3BA2F" stopOpacity={0.0}/>
               </linearGradient>
             </defs>
@@ -117,29 +131,43 @@ export function EvolutionChart({ transactions, totalCurrentValue }: Props) {
             <XAxis 
               dataKey="date" 
               stroke="#848E9C" 
-              fontSize={12} 
+              fontSize={11} 
               tickLine={false}
               axisLine={false}
               tickMargin={12}
             />
             <YAxis 
               stroke="#848E9C" 
-              fontSize={12} 
+              fontSize={11} 
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => `R$ ${value.toLocaleString('pt-BR', { notation: 'compact' })}`}
-              width={70}
+              width={65}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#404040', strokeWidth: 1, strokeDasharray: '4 4' }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#404040', strokeWidth: 1 }} />
+            
+            {/* Patrimônio Area */}
             <Area 
               type="monotone" 
-              name="Total Investido"
-              dataKey="investido" 
+              name="Patrimônio"
+              dataKey="patrimonio" 
               stroke="#F3BA2F" 
-              strokeWidth={4}
+              strokeWidth={3}
               fillOpacity={1} 
-              fill="url(#colorInvestido)" 
-              style={{ filter: "drop-shadow(0px 4px 8px rgba(243, 186, 47, 0.4))" }}
+              fill="url(#colorPatrimonio)" 
+              animationDuration={1500}
+            />
+            
+            {/* Investido Line */}
+            <Area
+              type="monotone"
+              name="Total Investido"
+              dataKey="investido"
+              stroke="#848E9C"
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              fill="transparent"
+              animationDuration={1500}
             />
           </AreaChart>
         </ResponsiveContainer>

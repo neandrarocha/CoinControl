@@ -7,9 +7,10 @@ interface Props {
   transactions: Transaction[];
   stats: AssetStats[];
   totalCurrentValue: number;
+  currentPrices: Record<string, number>;
 }
 
-export function ChartsCarousel({ transactions, stats, totalCurrentValue }: Props) {
+export function ChartsCarousel({ transactions, stats, totalCurrentValue, currentPrices }: Props) {
   const [activeChart, setActiveChart] = useState<'evolution' | 'allocation'>('evolution');
 
   return (
@@ -33,7 +34,7 @@ export function ChartsCarousel({ transactions, stats, totalCurrentValue }: Props
       {/* Chart Display */}
       <div>
         {activeChart === 'evolution' ? (
-          <EvolutionChart transactions={transactions} totalCurrentValue={totalCurrentValue} />
+          <EvolutionChart transactions={transactions} totalCurrentValue={totalCurrentValue} currentPrices={currentPrices} />
         ) : (
           <PortfolioAllocationChart stats={stats} />
         )}

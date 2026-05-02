@@ -113,7 +113,7 @@ export function Dashboard() {
          </header>
 
          <section className="p-6 lg:p-10 flex-1 flex flex-col gap-8 w-full min-h-0">
-           <ChartsCarousel transactions={transactions} stats={stats} totalCurrentValue={totalPatrimony} />
+           <ChartsCarousel transactions={transactions} stats={stats} totalCurrentValue={totalPatrimony} currentPrices={currentPrices} />
            <AssetList stats={stats} transactions={transactions} onRemoveTransaction={removeTransaction} />
          </section>
       </main>
