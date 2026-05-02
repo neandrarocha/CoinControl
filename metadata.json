@@ -1,5 +1,5 @@
 {
-  "name": "Crypto Portfólio Tracker",
+  "name": "KryptonStats",
   "description": "App para rastrear compras de BTC e USDC, calcular preço médio e histórico de investimentos",
   "requestFramePermissions": [],
   "majorCapabilities": []
