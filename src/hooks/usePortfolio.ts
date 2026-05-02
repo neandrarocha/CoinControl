@@ -88,7 +88,12 @@ export function usePortfolio() {
 export function calculateStats(transactions: Transaction[], currentPrices: Record<string, number>) {
   const assetStatsMap: Record<string, AssetStats> = {};
   
-  transactions.forEach(t => {
+  // Sort transactions by date for correct moving average calculation
+  const sortedTransactions = [...transactions].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  sortedTransactions.forEach(t => {
     if (!assetStatsMap[t.asset]) {
       assetStatsMap[t.asset] = {
         asset: t.asset,
@@ -101,12 +106,15 @@ export function calculateStats(transactions: Transaction[], currentPrices: Recor
         profitOrLossPercent: 0
       };
     }
+    
     if (t.type === 'venda') {
       const stats = assetStatsMap[t.asset];
-      const avgPrice = stats.totalQuantity > 0 ? stats.totalInvested / stats.totalQuantity : 0;
-      stats.totalQuantity -= t.quantity;
-      // Reduce invested proportionally to maintain same average price
-      stats.totalInvested -= t.quantity * avgPrice;
+      if (stats.totalQuantity > 0) {
+        const currentAvg = stats.totalInvested / stats.totalQuantity;
+        stats.totalQuantity -= t.quantity;
+        // Reduce invested basis proportionally based on moving average price
+        stats.totalInvested -= t.quantity * currentAvg;
+      }
     } else {
       assetStatsMap[t.asset].totalQuantity += t.quantity;
       assetStatsMap[t.asset].totalInvested += t.valuePaid;
@@ -114,15 +122,23 @@ export function calculateStats(transactions: Transaction[], currentPrices: Recor
   });
 
   const stats = Object.values(assetStatsMap)
-    .filter(stat => stat.totalQuantity > 0.00000001) // Filter out dust or fully sold assets
+    .filter(stat => stat.totalQuantity > 0.00000001) // Filter out dust
     .map(stat => {
-      stat.averagePrice = stat.totalQuantity > 0 ? stat.totalInvested / stat.totalQuantity : 0;
-    stat.currentPrice = currentPrices[stat.asset] || stat.averagePrice; // Fallback so chart doesn't break if API fails
-    stat.currentValue = stat.totalQuantity * stat.currentPrice;
-    stat.profitOrLoss = stat.currentValue - stat.totalInvested;
-    stat.profitOrLossPercent = stat.totalInvested > 0 ? (stat.profitOrLoss / stat.totalInvested) * 100 : 0;
-    return stat;
-  });
+      const averagePrice = stat.totalQuantity > 0 ? stat.totalInvested / stat.totalQuantity : 0;
+      const currentPrice = currentPrices[stat.asset] || averagePrice;
+      const currentValue = stat.totalQuantity * currentPrice;
+      const profitOrLoss = currentValue - stat.totalInvested;
+      const profitOrLossPercent = stat.totalInvested > 0 ? (profitOrLoss / stat.totalInvested) * 100 : 0;
+
+      return {
+        ...stat,
+        averagePrice,
+        currentPrice,
+        currentValue,
+        profitOrLoss,
+        profitOrLossPercent
+      };
+    });
 
   const totalPatrimony = stats.reduce((acc, stat) => acc + stat.currentValue, 0);
   const totalInvested = stats.reduce((acc, stat) => acc + stat.totalInvested, 0);

@@ -14,6 +14,15 @@ export function TransactionForm({ onAddTransaction, currentPrices }: Props) {
   const [quotation, setQuotation] = useState('');
   const [type, setType] = useState<'compra' | 'venda'>('compra');
 
+  // Auto-calculate Value Paid when quantity or quotation changes
+  useEffect(() => {
+    const q = parseFloat(quantity);
+    const c = parseFloat(quotation);
+    if (!isNaN(q) && !isNaN(c)) {
+      setValuePaid((q * c).toString());
+    }
+  }, [quantity, quotation]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !asset || !quantity || !valuePaid || !quotation) return;

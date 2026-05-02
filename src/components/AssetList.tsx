@@ -12,13 +12,16 @@ interface Props {
 export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'compra' | 'venda'>('all');
   const [yearFilter, setYearFilter] = useState<'all' | string>('all');
+  const [assetFilter, setAssetFilter] = useState<'all' | string>('all');
 
   const years = Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear().toString()))).sort((a, b) => b.localeCompare(a));
+  const assets = Array.from(new Set(transactions.map(t => t.asset))).sort();
 
   const filteredTransactions = transactions.filter(t => {
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
     const matchesYear = yearFilter === 'all' || new Date(t.date).getFullYear().toString() === yearFilter;
-    return matchesType && matchesYear;
+    const matchesAsset = assetFilter === 'all' || t.asset === assetFilter;
+    return matchesType && matchesYear && matchesAsset;
   });
 
   return (
@@ -115,22 +118,32 @@ export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="grid grid-cols-3 gap-2 mb-4">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as any)}
             className="bg-[#181A20] border border-[#2B2F36] rounded p-2 text-xs text-white outline-none focus:border-[#F3BA2F]"
           >
-            <option value="all">Todas Ops</option>
+            <option value="all">Ops</option>
             <option value="compra">Compras</option>
             <option value="venda">Vendas</option>
+          </select>
+          <select
+            value={assetFilter}
+            onChange={(e) => setAssetFilter(e.target.value)}
+            className="bg-[#181A20] border border-[#2B2F36] rounded p-2 text-xs text-white outline-none focus:border-[#F3BA2F]"
+          >
+            <option value="all">Ativos</option>
+            {assets.map(asset => (
+              <option key={asset} value={asset}>{asset}</option>
+            ))}
           </select>
           <select
             value={yearFilter}
             onChange={(e) => setYearFilter(e.target.value)}
             className="bg-[#181A20] border border-[#2B2F36] rounded p-2 text-xs text-white outline-none focus:border-[#F3BA2F]"
           >
-            <option value="all">Todos Anos</option>
+            <option value="all">Anos</option>
             {years.map(year => (
               <option key={year} value={year}>{year}</option>
             ))}
@@ -141,20 +154,23 @@ export function AssetList({ stats, transactions, onRemoveTransaction }: Props) {
           {filteredTransactions.slice().reverse().map((t, i) => (
             <div key={t.id} className={`flex justify-between items-start border-l-4 pl-4 group ${t.type === 'compra' ? 'border-[#0ECB81]' : 'border-[#F6465D]'} ${i > 5 ? 'opacity-50' : ''}`}>
               <div>
-                <p className="text-sm font-bold text-white flex items-center gap-2">
+                <p className="text-base font-bold text-white flex items-center gap-2">
                   <span className={`text-[10px] uppercase font-black px-1 rounded ${t.type === 'compra' ? 'bg-[#0ECB81]/10 text-[#0ECB81]' : 'bg-[#F6465D]/10 text-[#F6465D]'}`}>
                     {t.type}
                   </span>
                   {t.asset}
                 </p>
-                <p className="text-xs text-[#848E9C] mt-1">{new Date(t.date).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' •')}</p>
+                <p className="text-sm text-[#848E9C] mt-1">{new Date(t.date).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' •')}</p>
               </div>
               <div className="text-right flex items-center gap-3">
                 <div>
-                  <p className={`text-sm font-mono font-semibold ${t.type === 'compra' ? 'text-white' : 'text-[#848E9C]'}`}>
+                  <p className={`text-base font-mono font-bold ${t.type === 'compra' ? 'text-[#0ECB81]' : 'text-[#F6465D]'}`}>
                     {t.type === 'compra' ? '+' : '-'}{formatCrypto(t.quantity)} {t.asset}
                   </p>
-                  <p className="text-xs text-[#848E9C] mt-1">{formatCurrency(t.valuePaid)}</p>
+                  <p className={`text-sm mt-1 font-bold ${t.type === 'compra' ? 'text-[#0ECB81]' : 'text-[#F6465D]'}`}>
+                    {formatCurrency(t.valuePaid)}
+                  </p>
+                  <p className="text-[11px] text-[#EAECEF] mt-1 font-semibold">Cotação: {formatCurrency(t.quotation)}</p>
                 </div>
                 <button 
                   onClick={() => onRemoveTransaction(t.id)}
