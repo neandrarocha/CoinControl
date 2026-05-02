@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A user's investment transaction for an asset.",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "description": "ISO DateTime string of the transaction"
+        },
+        "asset": {
+          "type": "string",
+          "description": "Asset tickler symbol (e.g., BTC, USDC)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity purchased/transacted"
+        },
+        "valuePaid": {
+          "type": "number",
+          "description": "Total value paid in fiat or base currency"
+        },
+        "quotation": {
+          "type": "number",
+          "description": "Price per asset at the time of purchase"
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID of the owner"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["compra", "venda"],
+          "description": "Type of operation: buy (compra) or sell (venda)"
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "Server timestamp when created"
+        }
+      },
+      "required": ["date", "asset", "quantity", "valuePaid", "quotation", "userId", "createdAt", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Storage for user's individual cryptocurrency transactions."
+    }
+  }
+}

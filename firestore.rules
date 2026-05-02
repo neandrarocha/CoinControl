@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidTransaction(data, uid) {
+      return data.keys().hasAll(['date', 'asset', 'quantity', 'valuePaid', 'quotation', 'userId', 'createdAt', 'type']) &&
+             data.keys().size() == 8 &&
+             data.date is string && data.date.size() <= 64 &&
+             data.asset is string && data.asset.size() <= 20 &&
+             data.quantity is number &&
+             data.valuePaid is number &&
+             data.quotation is number &&
+             data.type in ['compra', 'venda'] &&
+             data.userId == uid &&
+             data.createdAt == request.time;
+    }
+
+    match /users/{userId}/transactions/{transactionId} {
+      allow read: if isOwner(userId);
+      allow delete: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(transactionId) && isValidTransaction(incoming(), userId);
+      // Let's not support update for now, or if we do, it has to follow the update pattern.
+      // We will only support create and delete since there's no UI for update currently.
+    }
+  }
+}
