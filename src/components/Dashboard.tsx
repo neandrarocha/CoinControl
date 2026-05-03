@@ -2,10 +2,12 @@ import React from 'react';
 import { TransactionForm } from './TransactionForm';
 import { ChartsCarousel } from './ChartsCarousel';
 import { AssetList } from './AssetList';
+import { KryptonAdvisor } from './KryptonAdvisor';
 import { usePortfolio, calculateStats } from '../hooks/usePortfolio';
 import { useBinancePrices } from '../hooks/useBinancePrices';
 import { formatCurrency } from '../lib/utils';
-import { LogOut } from 'lucide-react';
+import { auth } from '../lib/firebase';
+import { LogOut, User } from 'lucide-react';
 
 export function Dashboard() {
   const { transactions, addTransaction, removeTransaction } = usePortfolio();
@@ -88,6 +90,18 @@ export function Dashboard() {
       <main className="flex-1 flex flex-col min-w-0">
          <header className="py-8 lg:h-32 border-b border-[#2B2F36] px-6 lg:px-10 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-[#0B0E11] gap-6">
             <div>
+               <div className="flex items-center gap-2 mb-2">
+                 <div className="bg-[#F3BA2F]/10 p-1.5 rounded-md border border-[#F3BA2F]/20 overflow-hidden">
+                   {auth.currentUser?.photoURL ? (
+                     <img src={auth.currentUser.photoURL} alt="Profile" className="w-3 h-3 rounded-sm object-cover" />
+                   ) : (
+                     <User size={12} className="text-[#F3BA2F]" />
+                   )}
+                 </div>
+                 <span className="text-[10px] text-[#A9B1BD] font-black uppercase tracking-[0.2em]">
+                   Dashboard de {auth.currentUser?.displayName?.split(' ')[0] || 'Investidor'}
+                 </span>
+               </div>
                <h2 className="text-base text-white uppercase font-bold tracking-wider mb-2">Patrimônio Total</h2>
                <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
                  <span className="text-4xl lg:text-5xl font-bold">{formatCurrency(totalPatrimony)}</span>
@@ -113,7 +127,14 @@ export function Dashboard() {
          </header>
 
          <section className="p-6 lg:p-10 flex-1 flex flex-col gap-8 w-full min-h-0">
-           <ChartsCarousel transactions={transactions} stats={stats} totalCurrentValue={totalPatrimony} currentPrices={currentPrices} />
+           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+             <div className="xl:col-span-2">
+               <ChartsCarousel transactions={transactions} stats={stats} totalCurrentValue={totalPatrimony} currentPrices={currentPrices} />
+             </div>
+             <div>
+               <KryptonAdvisor stats={stats} transactions={transactions} />
+             </div>
+           </div>
            <AssetList stats={stats} transactions={transactions} onRemoveTransaction={removeTransaction} />
          </section>
       </main>
