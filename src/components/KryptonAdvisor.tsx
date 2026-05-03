@@ -21,18 +21,15 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     setError(null);
 
     try {
-      // Accessing Env Vars with safety for different environments (Vite/Vercel/Node)
-      const apiKey = 
-        (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-        (process as any).env?.VITE_GEMINI_API_KEY || 
-        (process as any).env?.GEMINI_API_KEY;
+      // Prioritize VITE_ prefix for client-side environments (Vite, Vercel)
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
       if (!apiKey) {
         throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY nas Environment Variables e faça Redeploy.');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       
       const portfolioContext = stats.map(s => (
         `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
