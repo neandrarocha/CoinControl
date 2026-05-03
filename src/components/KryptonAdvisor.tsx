@@ -27,6 +27,7 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
       }
 
       const ai = new GoogleGenAI({ apiKey });
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       const portfolioContext = stats.map(s => (
         `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
@@ -61,22 +62,21 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
         - Máximo 130 palavras.
       `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          temperature: 0.7,
-        },
-      });
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
 
-      if (response.text) {
-        setInsight(response.text);
+      if (text) {
+        setInsight(text);
       } else {
         throw new Error('Não foi possível gerar uma análise no momento.');
       }
     } catch (err: any) {
       console.error('Advisor Error:', err);
-      setError(err.message || 'Falha ao conectar com o Advisor.');
+      if (err.message?.includes('403') || err.message?.includes('PERMISSION_DENIED')) {
+        setError('Erro de Permissão (403): Verifique se a Generative Language API está ativa no Google AI Studio e se a chave não tem restrições de IP/Referer.');
+      } else {
+        setError(err.message || 'Falha ao conectar com o Advisor.');
+      }
     } finally {
       setLoading(false);
     }
