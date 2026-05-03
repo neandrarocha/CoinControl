@@ -29,55 +29,64 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       
-      const portfolioContext = stats.map(s => (
-        `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
-      )).join('\n');
+      // Intentional Fallback Strategy: If one model fails (404/429), try a different one.
+      const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.0-pro"];
+      let lastError: any = null;
+      let text = "";
 
-      const recentHistory = transactions.slice(-10).map(t => (
-        `- ${new Date(t.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}: ${t.type} de ${t.quantity.toFixed(8)} ${t.asset} a R$ ${t.quotation.toLocaleString('pt-BR')}`
-      )).join('\n');
+      for (const modelName of modelsToTry) {
+        try {
+          const model = genAI.getGenerativeModel({ model: modelName });
+          
+          const portfolioContext = stats.map(s => (
+            `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
+          )).join('\n');
 
-      const prompt = `
-        Aja como o "Krypton Advisor", um consultor financeiro de elite especializado em Cripto (BTC e USDC).
-        
-        DADOS DE MERCADO E USUÁRIO EM TEMPO REAL:
-        ${portfolioContext}
+          const recentHistory = transactions.slice(-10).map(t => (
+            `- ${new Date(t.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}: ${t.type} de ${t.quantity.toFixed(8)} ${t.asset} a R$ ${t.quotation.toLocaleString('pt-BR')}`
+          )).join('\n');
 
-        HISTÓRICO RECENTE:
-        ${recentHistory}
+          const prompt = `
+            Você é o Krypton Advisor, um consultor financeiro de elite.
+            Analise o portfólio cripto abaixo e dê um insight estratégico curto (máx 130 palavras).
+            
+            DADOS:
+            ${portfolioContext}
+            ${recentHistory}
 
-        SUA MISSÃO:
-        1. ANALISAR OPORTUNIDADE: Compare o "Valor Atual" (preço de mercado agora) com o "Preço Médio" do usuário.
-        2. SINALIZAR: 
-           - Se o Valor Atual estiver significativamente ABAIXO do Preço Médio: Sugira se é uma "Oportunidade de Compra" para reduzir o PM (DCA).
-           - Se o Valor Atual estiver significativamente ACIMA do Preço Médio: Analise se é hora de "Realizar Lucro" parcial.
-           - Se estiver equilibrado: Sugira "Manter (Hold)".
-        3. ESTRATÉGIA DE ATIVO: Diferencie a estratégia para BTC (acumulação de valor) vs USDC (reserva de valor/estabilidade).
-        4. SENTIMENTO: Com base nos preços atuais, dê um breve parecer se o momento de mercado parece "Esticado" (caro) ou "Sobre-vendido" (barato).
+            - Seja direto: Oportunidade de Compra, Realizar Lucro ou Hold?
+            - Considere BTC como valor e USDC como reserva.
+            - Responda em Português.
+          `;
 
-        REGRAS DE FORMATAÇÃO:
-        - Use títulos curtos em negrito.
-        - Seja direto: "Oportunidade Detectada" ou "Momento de Cautela".
-        - Responda em Português do Brasil.
-        - Máximo 130 palavras.
-      `;
-
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+          const result = await model.generateContent(prompt);
+          text = result.response.text();
+          if (text) break; // Success!
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`Model ${modelName} failed, trying next...`, err);
+          continue; // Try next model
+        }
+      }
 
       if (text) {
         setInsight(text);
       } else {
-        throw new Error('Não foi possível gerar uma análise no momento.');
+        throw lastError || new Error('Não foi possível gerar uma análise no momento.');
       }
     } catch (err: any) {
       console.error('Advisor Error:', err);
-      if (err.message?.includes('403') || err.message?.includes('PERMISSION_DENIED')) {
-        setError('Erro de Permissão (403): Verifique se a Generative Language API está ativa no Google AI Studio e se a chave não tem restrições de IP/Referer.');
+      const errorMessage = err.message || '';
+      
+      if (errorMessage.includes('429')) {
+        setError('Limite de Cota Excedido (429): Suas requisições gratuitas acabaram por hoje no Google AI Studio. Tente novamente mais tarde.');
+      } else if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED')) {
+        setError('Erro de Permissão (403): Sua chave de API pode ter restrições ou seu projeto não tem acesso a modelos generativos no momento.');
+      } else if (errorMessage.includes('404')) {
+        setError('Modelos Incompatíveis (404): Nenhum modelo Gemini foi encontrado para esta chave. Verifique se o projeto no AI Studio está ativo.');
       } else {
-        setError(err.message || 'Falha ao conectar com o Advisor.');
+        setError(errorMessage || 'Falha ao conectar com o Advisor.');
       }
     } finally {
       setLoading(false);
