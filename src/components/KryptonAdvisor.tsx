@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { AssetStats, Transaction } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { BrainCircuit, ShieldAlert, Cpu, Loader2, RefreshCw, Sparkles, TrendingUp } from 'lucide-react';
@@ -21,13 +21,18 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     setError(null);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
+      // Accessing Env Vars with safety for different environments (Vite/Vercel/Node)
+      const apiKey = 
+        (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+        (process as any).env?.VITE_GEMINI_API_KEY || 
+        (process as any).env?.GEMINI_API_KEY;
+
       if (!apiKey) {
-        throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY nas Environment Variables (em maiúsculo) e faça Redeply.');
+        throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY nas Environment Variables e faça Redeploy.');
       }
 
-      const ai = new GoogleGenAI({ apiKey });
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       const portfolioContext = stats.map(s => (
         `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
