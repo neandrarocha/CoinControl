@@ -23,7 +23,7 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('Configuração de IA não encontrada.');
+        throw new Error('Chave da IA não configurada. Se estiver no Vercel, adicione GEMINI_API_KEY nas variáveis de ambiente e faça um novo deploy.');
       }
 
       const ai = new GoogleGenAI({ apiKey });
