@@ -14,6 +14,7 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
   const [insight, setInsight] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasRequested, setHasRequested] = useState(false);
 
   const getAIInsight = useCallback(async () => {
     if (loading) return;
@@ -21,76 +22,70 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     setError(null);
 
     try {
-      // Limpa a chave para evitar espaços invisíveis
       const rawKey = import.meta.env.VITE_GEMINI_API_KEY;
       const apiKey = typeof rawKey === 'string' ? rawKey.trim() : null;
 
       if (!apiKey) {
-        throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY nas Environment Variables e faça Redeploy.');
+        throw new Error('Chave da IA não encontrada. Verifique as configurações.');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Tentativa de estratégia: Gemini 1.5 Flash é o mais estável para cotas gratuitas
-      // Usamos a versão 'v1' explicitamente para evitar problemas de compatibilidade
-      let text = "";
-      let lastError: any = null;
+      // Modelo solicitado pelo usuário: gemini-2.0-flash
+      // Versão v1beta é a correta para este modelo no AI Studio
+      const model = genAI.getGenerativeModel(
+        { model: "gemini-2.0-flash" },
+        { apiVersion: "v1beta" }
+      );
+      
+      const portfolioContext = stats.map(s => (
+        `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
+      )).join('\n');
 
-      const modelsToTry = [
-        { name: "gemini-1.5-flash", version: "v1" },
-        { name: "gemini-2.0-flash", version: "v1beta" }, // Fallback para o que você usou antes
-        { name: "gemini-1.5-flash-8b", version: "v1" }
-      ];
+      const prompt = `
+        Aja como o Krypton Advisor. 
+        Analise o portfólio cripto abaixo e dê um insight estratégico curto (máx 130 palavras).
+        
+        DADOS:
+        ${portfolioContext}
 
-      for (const modelConfig of modelsToTry) {
-        try {
-          const model = genAI.getGenerativeModel(
-            { model: modelConfig.name },
-            { apiVersion: modelConfig.version as any }
-          );
-          
-          const portfolioContext = stats.map(s => (
-            `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
-          )).join('\n');
+        - Seja direto: Oportunidade de Compra, Realizar Lucro ou Hold?
+        - Responda em Português do Brasil.
+      `;
 
-          const prompt = `
-            Aja como Krypton Advisor. Analise este portfólio curto e direto:
-            ${portfolioContext}
-            Diga se é Oportunidade, Hold ou Alerta. Máximo 100 palavras. Responda em Português.
-          `;
-
-          const result = await model.generateContent(prompt);
-          text = result.response.text();
-          if (text) break;
-        } catch (err: any) {
-          lastError = err;
-          console.warn(`Tentativa com ${modelConfig.name} falhou:`, err.message);
-          continue;
-        }
-      }
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
 
       if (text) {
         setInsight(text);
       } else {
-        throw lastError || new Error('Não foi possível gerar uma análise no momento.');
+        throw new Error('Não foi possível gerar uma análise.');
       }
     } catch (err: any) {
       console.error('Advisor Error:', err);
       const errorMessage = err.message || '';
       
       if (errorMessage.includes('429')) {
-        setError('Limite de Cota Excedido (429): Suas requisições gratuitas acabaram por hoje no Google AI Studio. Tente novamente mais tarde.');
+        setError('O Google AI Studio limitou as requisições (Erro 429). Aguarde 1 minuto. Isso ocorre na versão gratuita quando as chamadas são muito frequentes.');
       } else if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED')) {
-        setError('Erro de Permissão (403): Sua chave de API pode ter restrições ou seu projeto não tem acesso a modelos generativos no momento.');
+        setError('Erro de Permissão (403): Sua chave de API não tem acesso ao modelo 2.0 Flash ou o projeto está inativo.');
       } else if (errorMessage.includes('404')) {
-        setError('Modelos Incompatíveis (404): Nenhum modelo Gemini foi encontrado para esta chave. Verifique se o projeto no AI Studio está ativo.');
+        setError('Modelo Incompatível (404): O modelo gemini-2.0-flash não foi encontrado para esta chave.');
       } else {
         setError(errorMessage || 'Falha ao conectar com o Advisor.');
       }
     } finally {
       setLoading(false);
     }
-  }, [stats, transactions, loading]);
+  }, [stats, loading]);
+
+  // Executa uma vez ao carregar se houver dados, para evitar loops que causam 429
+  React.useEffect(() => {
+    if (!hasRequested && stats.length > 0) {
+      setHasRequested(true);
+      getAIInsight();
+    }
+  }, [stats, hasRequested, getAIInsight]);
 
   return (
     <div className="bg-[#181A20] rounded-xl border border-[#2B2F36] overflow-hidden shadow-2xl flex flex-col h-full min-h-[400px]">
