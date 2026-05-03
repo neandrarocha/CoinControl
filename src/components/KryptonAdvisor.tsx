@@ -21,8 +21,9 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     setError(null);
 
     try {
-      // Prioritize VITE_ prefix for client-side environments (Vite, Vercel)
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      // Limpa a chave para evitar espaços invisíveis
+      const rawKey = import.meta.env.VITE_GEMINI_API_KEY;
+      const apiKey = typeof rawKey === 'string' ? rawKey.trim() : null;
 
       if (!apiKey) {
         throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY nas Environment Variables e faça Redeploy.');
@@ -30,43 +31,41 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // Intentional Fallback Strategy: If one model fails (404/429), try a different one.
-      const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.0-pro"];
-      let lastError: any = null;
+      // Tentativa de estratégia: Gemini 1.5 Flash é o mais estável para cotas gratuitas
+      // Usamos a versão 'v1' explicitamente para evitar problemas de compatibilidade
       let text = "";
+      let lastError: any = null;
 
-      for (const modelName of modelsToTry) {
+      const modelsToTry = [
+        { name: "gemini-1.5-flash", version: "v1" },
+        { name: "gemini-2.0-flash", version: "v1beta" }, // Fallback para o que você usou antes
+        { name: "gemini-1.5-flash-8b", version: "v1" }
+      ];
+
+      for (const modelConfig of modelsToTry) {
         try {
-          const model = genAI.getGenerativeModel({ model: modelName });
+          const model = genAI.getGenerativeModel(
+            { model: modelConfig.name },
+            { apiVersion: modelConfig.version as any }
+          );
           
           const portfolioContext = stats.map(s => (
             `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
           )).join('\n');
 
-          const recentHistory = transactions.slice(-10).map(t => (
-            `- ${new Date(t.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}: ${t.type} de ${t.quantity.toFixed(8)} ${t.asset} a R$ ${t.quotation.toLocaleString('pt-BR')}`
-          )).join('\n');
-
           const prompt = `
-            Você é o Krypton Advisor, um consultor financeiro de elite.
-            Analise o portfólio cripto abaixo e dê um insight estratégico curto (máx 130 palavras).
-            
-            DADOS:
+            Aja como Krypton Advisor. Analise este portfólio curto e direto:
             ${portfolioContext}
-            ${recentHistory}
-
-            - Seja direto: Oportunidade de Compra, Realizar Lucro ou Hold?
-            - Considere BTC como valor e USDC como reserva.
-            - Responda em Português.
+            Diga se é Oportunidade, Hold ou Alerta. Máximo 100 palavras. Responda em Português.
           `;
 
           const result = await model.generateContent(prompt);
           text = result.response.text();
-          if (text) break; // Success!
+          if (text) break;
         } catch (err: any) {
           lastError = err;
-          console.warn(`Model ${modelName} failed, trying next...`, err);
-          continue; // Try next model
+          console.warn(`Tentativa com ${modelConfig.name} falhou:`, err.message);
+          continue;
         }
       }
 
