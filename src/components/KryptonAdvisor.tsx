@@ -21,9 +21,9 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     setError(null);
 
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || import.meta.env.VITE_GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('Chave da IA não configurada. Se estiver no Vercel, adicione GEMINI_API_KEY nas variáveis de ambiente e faça um novo deploy.');
+        throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY nas Environment Variables (em maiúsculo) e faça Redeply.');
       }
 
       const ai = new GoogleGenAI({ apiKey });
