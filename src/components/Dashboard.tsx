@@ -90,26 +90,32 @@ export function Dashboard() {
       <main className="flex-1 flex flex-col min-w-0">
          <header className="py-8 lg:h-32 border-b border-[#2B2F36] px-6 lg:px-10 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-[#0B0E11] gap-6">
             <div>
-               <div className="flex items-center gap-2 mb-2">
-                 <div className="bg-[#F3BA2F]/10 p-1.5 rounded-md border border-[#F3BA2F]/20 overflow-hidden">
-                   {auth.currentUser?.photoURL ? (
-                     <img src={auth.currentUser.photoURL} alt="Profile" className="w-3 h-3 rounded-sm object-cover" />
-                   ) : (
-                     <User size={12} className="text-[#F3BA2F]" />
-                   )}
-                 </div>
-                 <span className="text-[10px] text-[#A9B1BD] font-black uppercase tracking-[0.2em]">
-                   Dashboard de {auth.currentUser?.displayName?.split(' ')[0] || 'Investidor'}
-                 </span>
+               <div className="flex items-center gap-4 mb-3">
+                  <h2 className="text-sm text-white uppercase font-black tracking-[0.2em]">Patrimônio Total</h2>
+                  <div className="w-[1.5px] h-6 bg-[#2B2F36]"></div>
+                  <div className="flex items-center gap-2.5">
+                     <div className="bg-[#2B2F36] p-1 rounded-lg border border-[#404040]/30 overflow-hidden shadow-lg group">
+                        {auth.currentUser?.photoURL ? (
+                           <img src={auth.currentUser.photoURL} alt="Profile" className="w-6 h-6 rounded-md object-cover grayscale-[0.2] transition-all" />
+                        ) : (
+                           <User size={16} className="text-[#F3BA2F]" />
+                        )}
+                     </div>
+                     <span className="text-xs text-[#F3BA2F] font-black uppercase tracking-[0.25em] opacity-80 decoration-[#F3BA2F]/30">
+                        Dashboard de {auth.currentUser?.displayName?.split(' ')[0] || 'Investidor'}
+                     </span>
+                  </div>
                </div>
-               <h2 className="text-base text-white uppercase font-bold tracking-wider mb-2">Patrimônio Total</h2>
-               <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
-                 <span className="text-4xl lg:text-5xl font-bold">{formatCurrency(totalPatrimony)}</span>
-                 {totalInvested > 0 && (
-                    <span className={`text-lg font-semibold ${isPositive ? 'text-[#0ECB81]' : 'text-rose-500'}`}>
-                       {isPositive ? '+' : ''}{((profitLoss / totalInvested) * 100).toFixed(2)}% (Geral)
-                    </span>
-                 )}
+               
+               <div className="flex items-baseline gap-5">
+                  <span className="text-5xl lg:text-7xl font-bold tracking-tighter text-white drop-shadow-sm select-none">
+                     {formatCurrency(totalPatrimony)}
+                  </span>
+                  {totalInvested > 0 && (
+                     <span className={`text-xl lg:text-2xl font-bold ${isPositive ? 'text-[#0ECB81]' : 'text-rose-500'} tracking-tight`}>
+                        {isPositive ? '+' : ''}{((profitLoss / totalInvested) * 100).toFixed(2)}% (Geral)
+                     </span>
+                  )}
                </div>
             </div>
             <div className="flex gap-8 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
