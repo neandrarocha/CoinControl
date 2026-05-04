@@ -26,66 +26,77 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
       const apiKey = typeof rawKey === 'string' ? rawKey.trim() : null;
 
       if (!apiKey) {
-        throw new Error('Chave da IA não encontrada. Verifique as configurações.');
+        throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY.');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
-      
-      // Modelo solicitado pelo usuário: gemini-2.0-flash
-      // Versão v1beta é a correta para este modelo no AI Studio
-      const model = genAI.getGenerativeModel(
-        { model: "gemini-2.0-flash" },
-        { apiVersion: "v1beta" }
-      );
       
       const portfolioContext = stats.map(s => (
         `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
       )).join('\n');
 
       const prompt = `
-        Aja como o Krypton Advisor. 
-        Analise o portfólio cripto abaixo e dê um insight estratégico curto (máx 130 palavras).
-        
-        DADOS:
+        Aja como o Krypton Advisor. Analise meu portfólio curto e direto:
         ${portfolioContext}
-
-        - Seja direto: Oportunidade de Compra, Realizar Lucro ou Hold?
-        - Responda em Português do Brasil.
+        Sinalize se é Oportunidade, Hold ou Cuidado. Responda em Português (máx 130 palavras).
       `;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+      let text = "";
+      let lastError: any = null;
+
+      // Lista de modelos para tentar em ordem de prioridade
+      // gemini-1.5-flash em v1beta costuma ser o mais resiliente a quotas 'limit 0'
+      const configs = [
+        { model: "gemini-1.5-flash", version: "v1beta" },
+        { model: "gemini-2.0-flash", version: "v1beta" },
+        { model: "gemini-1.5-flash", version: "v1" }
+      ];
+
+      for (const config of configs) {
+        try {
+          const model = genAI.getGenerativeModel(
+            { model: config.model },
+            { apiVersion: config.version as any }
+          );
+          const result = await model.generateContent(prompt);
+          text = result.response.text();
+          if (text) break;
+        } catch (err: any) {
+          lastError = err;
+          console.warn(`Falha no modelo ${config.model} (${config.version}):`, err.message);
+          // Se for erro de quota (429), continuamos para o próximo modelo
+          if (err.message?.includes('429')) continue;
+          // Se for erro de permissão ou não encontrado, continuamos
+          continue;
+        }
+      }
 
       if (text) {
         setInsight(text);
+        setHasRequested(true);
       } else {
-        throw new Error('Não foi possível gerar uma análise.');
+        throw lastError || new Error('Não foi possível gerar uma análise.');
       }
     } catch (err: any) {
       console.error('Advisor Error:', err);
       const errorMessage = err.message || '';
       
       if (errorMessage.includes('429')) {
-        setError('O Google AI Studio limitou as requisições (Erro 429). Aguarde 1 minuto. Isso ocorre na versão gratuita quando as chamadas são muito frequentes.');
+        setError('Quota Excedida: O Google AI Studio limitou o uso gratuito. Tente novamente em alguns minutos ou verifique sua chave.');
       } else if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED')) {
-        setError('Erro de Permissão (403): Sua chave de API não tem acesso ao modelo 2.0 Flash ou o projeto está inativo.');
+        setError('Erro de Permissão (403): Verifique se a API está ativa no Cloud Console para este projeto.');
       } else if (errorMessage.includes('404')) {
-        setError('Modelo Incompatível (404): O modelo gemini-2.0-flash não foi encontrado para esta chave.');
+        setError('Modelo não disponível (404). Verifique se o modelo está selecionado corretamente no AI Studio.');
       } else {
         setError(errorMessage || 'Falha ao conectar com o Advisor.');
       }
     } finally {
       setLoading(false);
     }
-  }, [stats, loading]);
+  }, [stats]);
 
-  // Executa uma vez ao carregar se houver dados, para evitar loops que causam 429
-  React.useEffect(() => {
-    if (!hasRequested && stats.length > 0) {
-      setHasRequested(true);
-      getAIInsight();
-    }
-  }, [stats, hasRequested, getAIInsight]);
+  // Removemos a execução automática para não 'queimar' a quota logo no load.
+  // O usuário deve clicar no botão para gerar o primeiro insight.
 
   return (
     <div className="bg-[#181A20] rounded-xl border border-[#2B2F36] overflow-hidden shadow-2xl flex flex-col h-full min-h-[400px]">
