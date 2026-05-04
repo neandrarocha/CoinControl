@@ -43,46 +43,48 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
 
       let text = "";
       
-      // Tentamos o Google AI Studio
+      // Modelo solicitado: Gemini 2.0 Flash
+      // Nota: 429 (Too Many Requests) é comum na versão gratuita do AI Studio
       try {
         const model = genAI.getGenerativeModel(
           { model: "gemini-2.0-flash" },
           { apiVersion: "v1beta" }
         );
         const result = await model.generateContent(prompt);
-        text = result.response.text();
+        const text = result.response.text();
+        
+        if (text) {
+          setInsight(text);
+          setHasRequested(true);
+          return; // Sucesso com IA
+        }
       } catch (aiErr: any) {
-        console.warn('Google AI Studio indisponível, acionando Motor Local:', aiErr.message);
-        // Se falhar (429 ou 404), o catch externo vai lidar com isso gerando o fallback local
+        console.warn('IA Temporariamente Indisponível (429/404):', aiErr.message);
+        // Não jogamos o erro aqui, deixamos cair no catch externo para usar o Motor Local
         throw aiErr;
-      }
-
-      if (text) {
-        setInsight(text);
-        setHasRequested(true);
       }
     } catch (err: any) {
       console.error('Advisor Engine Switch:', err);
       
-      // MOTOR DE INSIGHT LOCAL (Fallback Definitivo)
-      // Se a IA do Google falhar, calculamos o melhor conselho matematicamente
-      let localAdvice = "### 🧠 Krypton Insight (Motor Local)\n\n";
-      
+      // MOTOR DE ANÁLISE LOCAL (Fallback Inteligente para Quota Excedida)
       const btc = stats.find(s => s.asset === 'BTC');
       const usdc = stats.find(s => s.asset === 'USDC');
+      
+      let localAdvice = "### 🔒 Krypton Insight (Motor Local)\n\n";
+      localAdvice += "*A IA atingiu o limite de uso gratuito. Ativando análise lógica baseada em dados reais:*\n\n";
 
       if (btc) {
-        if (btc.profitOrLossPercent < -10) {
-          localAdvice += `**Oportunidade em BTC detected!** Seu preço médio está acima do mercado. Considere um aporte fracionado (DCA) para baixar seu custo médio enquanto o ativo está "descontado".\n\n`;
-        } else if (btc.profitOrLossPercent > 15) {
-          localAdvice += `**Realização de Lucro em BTC?** Você está com mais de 15% de ganho. Pode ser prudente realizar 20% do lucro e converter para USDC, aguardando uma correção para recomprar.\n\n`;
+        if (btc.profitOrLossPercent < -5) {
+          localAdvice += `**Oportunidade Detectada em BTC:** Seu preço médio (R$ ${btc.averagePrice.toLocaleString('pt-BR')}) está acima do valor de mercado. Matematicamente, este é um bom momento para **DCA (Aporte Fracionado)** para reduzir seu custo médio.\n\n`;
+        } else if (btc.profitOrLossPercent > 12) {
+          localAdvice += `**Alerta de Realização:** Você está com lucro de ${btc.profitOrLossPercent.toFixed(2)}% em BTC. Estrategicamente, considerar converter 15% para USDC para garantir ganhos e recomprar em correções é uma prática de elite.\n\n`;
         } else {
-          localAdvice += `**Estratégia de Hold para BTC.** O preço está estável em relação ao seu custo. Mantenha a posição e aguarde uma tendência mais clara.\n\n`;
+          localAdvice += `**Estratégia: HOLD.** Seu BTC está em zona de equilíbrio. Mantenha a posição e aguarde uma volatilidade maior para agir.\n\n`;
         }
       }
 
       if (usdc) {
-        localAdvice += `**Gestão de USDC:** Sua reserva de valor está disponível. Recomendamos manter ao menos 20% do patrimônio em USDC para aproveitar janelas de oportunidade no BTC.`;
+        localAdvice += `**Gestão de Reserva:** Você possui USDC disponível. Mantenha essa reserva para "comprar o mergulho" (buy the dip) caso o BTC caia mais 5%.\n\n`;
       }
 
       setInsight(localAdvice);
