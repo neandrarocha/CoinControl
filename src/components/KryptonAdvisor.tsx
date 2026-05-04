@@ -1,8 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { AssetStats, Transaction } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { BrainCircuit, ShieldAlert, Cpu, Loader2, RefreshCw, Sparkles, TrendingUp } from 'lucide-react';
+import { BrainCircuit, ShieldAlert, Cpu, Loader2, RefreshCw, Sparkles, TrendingUp, Info } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface Props {
@@ -14,106 +13,102 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
   const [insight, setInsight] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasRequested, setHasRequested] = useState(false);
 
-  const getAIInsight = useCallback(async () => {
-    if (loading) return;
+  const getLocalInsight = useCallback(async () => {
     setLoading(true);
     setError(null);
 
+    // Simulamos um pequeno processamento para dar "feeling" de análise
+    await new Promise(resolve => setTimeout(resolve, 800));
+
     try {
-      const rawKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const apiKey = typeof rawKey === 'string' ? rawKey.trim() : null;
-
-      if (!apiKey) {
-        throw new Error('API Key ausente. Usando motor local...');
-      }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      
-      const portfolioContext = stats.map(s => (
-        `- ${s.asset}: Qtd: ${s.totalQuantity.toFixed(8)}, Preço Médio: R$ ${s.averagePrice.toLocaleString('pt-BR')}, Valor Atual: R$ ${s.currentValue.toLocaleString('pt-BR')}, Lucro/Prejuízo: ${s.profitOrLossPercent.toFixed(2)}%`
-      )).join('\n');
-
-      const prompt = `
-        Aja como o Krypton Advisor. Analise meu portfólio curto e direto:
-        ${portfolioContext}
-        Sinalize se é Oportunidade, Hold ou Cuidado. Responda em Português (máx 130 palavras).
-      `;
-
-      let text = "";
-      
-      // Modelo solicitado: Gemini 2.0 Flash
-      // Nota: 429 (Too Many Requests) é comum na versão gratuita do AI Studio
-      try {
-        const model = genAI.getGenerativeModel(
-          { model: "gemini-2.0-flash" },
-          { apiVersion: "v1beta" }
-        );
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        
-        if (text) {
-          setInsight(text);
-          setHasRequested(true);
-          return; // Sucesso com IA
-        }
-      } catch (aiErr: any) {
-        console.warn('IA Temporariamente Indisponível (429/404):', aiErr.message);
-        // Não jogamos o erro aqui, deixamos cair no catch externo para usar o Motor Local
-        throw aiErr;
-      }
-    } catch (err: any) {
-      console.error('Advisor Engine Switch:', err);
-      
-      // MOTOR DE ANÁLISE LOCAL (Fallback Inteligente para Quota Excedida)
       const btc = stats.find(s => s.asset === 'BTC');
       const usdc = stats.find(s => s.asset === 'USDC');
-      
-      let localAdvice = "### 🔒 Krypton Insight (Motor Local)\n\n";
-      localAdvice += "*A IA atingiu o limite de uso gratuito. Ativando análise lógica baseada em dados reais:*\n\n";
+      const totalValue = stats.reduce((acc, curr) => acc + curr.currentValue, 0);
 
-      if (btc) {
-        if (btc.profitOrLossPercent < -5) {
-          localAdvice += `**Oportunidade Detectada em BTC:** Seu preço médio (R$ ${btc.averagePrice.toLocaleString('pt-BR')}) está acima do valor de mercado. Matematicamente, este é um bom momento para **DCA (Aporte Fracionado)** para reduzir seu custo médio.\n\n`;
-        } else if (btc.profitOrLossPercent > 12) {
-          localAdvice += `**Alerta de Realização:** Você está com lucro de ${btc.profitOrLossPercent.toFixed(2)}% em BTC. Estrategicamente, considerar converter 15% para USDC para garantir ganhos e recomprar em correções é uma prática de elite.\n\n`;
-        } else {
-          localAdvice += `**Estratégia: HOLD.** Seu BTC está em zona de equilíbrio. Mantenha a posição e aguarde uma volatilidade maior para agir.\n\n`;
+      let report = "### 🧠 Krypton Core Analytics\n\n";
+
+      // 1. Análise de Exposição e Risco
+      if (totalValue > 0) {
+        const btcWeight = btc ? (btc.currentValue / totalValue) * 100 : 0;
+        const usdcWeight = usdc ? (usdc.currentValue / totalValue) * 100 : 0;
+
+        report += `**Visão de Portfólio:** Você possui uma exposição de **${btcWeight.toFixed(1)}%** em ativos voláteis e **${usdcWeight.toFixed(1)}%** em reservas de liquidez.\n\n`;
+
+        // 2. Análise Específica: BTC
+        if (btc) {
+          const pnl = btc.profitOrLossPercent;
+          report += `#### ₿ Análise Bitcoin:\n`;
+          
+          if (pnl < -15) {
+            report += `- **Status: Oportunidade Extrema.** Seu prejuízo de ${pnl.toFixed(2)}% indica que o preço de mercado está muito abaixo do seu custo médio. **Sugestão: COMPRAR MAIS (DCA AGRESSIVO)** para reduzir drasticamente o preço médio.\n`;
+          } else if (pnl < -5) {
+            report += `- **Status: Oportunidade de Entrada.** Com queda de ${pnl.toFixed(2)}%, o ativo está em zona de desconto. **Sugestão: COMPRAR FRACIONADO (DCA)**.\n`;
+          } else if (pnl >= -5 && pnl <= 5) {
+            report += `- **Status: Zona de Equilíbrio.** Preço próximo ao seu custo médio. **Sugestão: MANTER (HOLD)**. Não há necessidade de movimentos bruscos agora.\n`;
+          } else if (pnl > 5 && pnl <= 15) {
+            report += `- **Status: Lucro Moderado.** Ganhos de ${pnl.toFixed(2)}%. **Sugestão: MANTER/OBSERVAR**. Prepare-se para realizar parte caso atinja 20%.\n`;
+          } else if (pnl > 15) {
+            report += `- **Status: Lucro Elevado.** Você está com ${pnl.toFixed(2)}% de ganho. **Sugestão: VENDER PARCIAL (Take Profit)**. Considere converter 20% da posição em USDC para garantir o lucro.\n`;
+          }
+          report += '\n';
         }
+
+        // 3. Análise de Liquidez: USDC
+        if (usdc) {
+          report += `#### 💵 Gestão de Caixa:\n`;
+          const cashRatio = (usdc.currentValue / totalValue);
+          
+          if (cashRatio < 0.10) {
+            report += `- **Alerta de Liquidez:** Sua reserva é baixa (${(cashRatio * 100).toFixed(1)}%). Se o mercado cair, você não terá fôlego para comprar o mergulho. Considere aumentar essa reserva.\n`;
+          } else if (cashRatio >= 0.10 && cashRatio <= 0.30) {
+            report += `- **Reserva Saudável:** Você tem ${(cashRatio * 100).toFixed(1)}% em caixa. Está bem posicionado para oportunidades pontuais.\n`;
+          } else {
+            report += `- **Alta Liquidez:** Com ${(cashRatio * 100).toFixed(1)}% em USDC, sua segurança é alta, mas seu custo de oportunidade aumenta se o BTC explodir. Considere aportes graduais se o BTC recuar.\n`;
+          }
+          report += '\n';
+        }
+
+        // 4. Veredito Final
+        report += `--- \n`;
+        if (btc && usdc) {
+          if (btc.profitOrLossPercent < -10 && usdc.currentValue > 0) {
+            report += `**💡 Insight Estratégico:** O "Buy the Dip" perfeito está desenhado. Você tem prejuízo no BTC e tem caixa (USDC). É hora de agir com sabedoria.`;
+          } else if (btc.profitOrLossPercent > 20 && usdc.currentValue / totalValue < 0.1) {
+            report += `**💡 Insight Estratégico:** Não seja ganancioso. O lucro de ${btc.profitOrLossPercent.toFixed(0)}% está no ponto para reforçar sua reserva de USDC.`;
+          } else {
+            report += `**💡 Insight Estratégico:** Mantenha a disciplina. Seu portfólio está seguindo uma gestão orgânica estável.`;
+          }
+        }
+      } else {
+        report += "Portfólio vazio. Adicione transações para receber uma análise estratégica.";
       }
 
-      if (usdc) {
-        localAdvice += `**Gestão de Reserva:** Você possui USDC disponível. Mantenha essa reserva para "comprar o mergulho" (buy the dip) caso o BTC caia mais 5%.\n\n`;
-      }
-
-      setInsight(localAdvice);
-      setHasRequested(true);
+      setInsight(report);
+    } catch (err: any) {
+      setError("Falha ao processar análise local.");
     } finally {
       setLoading(false);
     }
   }, [stats]);
 
-  // Removemos a execução automática para não 'queimar' a quota logo no load.
-  // O usuário deve clicar no botão para gerar o primeiro insight.
-
   return (
     <div className="bg-[#181A20] rounded-xl border border-[#2B2F36] overflow-hidden shadow-2xl flex flex-col h-full min-h-[400px]">
       <div className="p-5 border-b border-[#2B2F36] flex items-center justify-between bg-gradient-to-r from-[#181A20] via-[#1E2329] to-[#181A20]">
         <div className="flex items-center gap-3">
-          <div className="bg-[#F3BA2F]/10 p-2 rounded-lg relative overflow-hidden group">
-            <div className="absolute inset-0 bg-[#F3BA2F]/5 animate-pulse"></div>
-            <BrainCircuit className="w-5 h-5 text-[#F3BA2F] relative z-10" />
+          <div className="bg-[#0ECB81]/10 p-2 rounded-lg relative overflow-hidden group">
+            <div className="absolute inset-0 bg-[#0ECB81]/5 animate-pulse"></div>
+            <Cpu className="w-5 h-5 text-[#0ECB81] relative z-10" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Krypton Advisor</h3>
-            <p className="text-[10px] text-[#F3BA2F] font-bold uppercase tracking-tighter opacity-80">AI Insight Engine</p>
+            <p className="text-[10px] text-[#0ECB81] font-bold uppercase tracking-tighter opacity-80">Local Core Intelligence</p>
           </div>
         </div>
         <button
-          onClick={getAIInsight}
+          onClick={getLocalInsight}
           disabled={loading}
-          className="bg-[#2B2F36] hover:bg-[#F3BA2F] hover:text-black disabled:opacity-50 text-[#F3BA2F] p-2 rounded-lg transition-all border border-[#F3BA2F]/20 hover:border-[#F3BA2F] active:scale-95 group shadow-lg"
+          className="bg-[#2B2F36] hover:bg-[#0ECB81] hover:text-black disabled:opacity-50 text-[#0ECB81] p-2 rounded-lg transition-all border border-[#0ECB81]/20 hover:border-[#0ECB81] active:scale-95 group shadow-lg"
           title="Atualizar análise"
         >
           {loading ? (
@@ -136,12 +131,12 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
             >
               <div className="mb-6 flex justify-center">
                 <div className="relative">
-                  <Sparkles className="w-12 h-12 text-[#F3BA2F]/20 animate-pulse" />
-                  <Cpu className="w-6 h-6 text-[#F3BA2F]/40 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <Sparkles className="w-12 h-12 text-[#0ECB81]/20 animate-pulse" />
+                  <BrainCircuit className="w-6 h-6 text-[#0ECB81]/40 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
               </div>
               <p className="text-[#848E9C] text-sm max-w-[220px] mx-auto leading-relaxed font-medium">
-                Clique no botão acima para que a nossa IA analise seu portfólio e sugira estratégias personalizadas.
+                Clique no botão acima para que o Motor Local analise seu portfólio e sugira estratégias baseadas em dados reais.
               </p>
               <div className="mt-8 flex justify-center gap-1">
                 {[1, 2, 3].map(i => (
@@ -160,15 +155,15 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
               className="m-auto flex flex-col items-center gap-6 py-8"
             >
               <div className="relative">
-                <div className="w-16 h-16 rounded-full border-2 border-[#F3BA2F]/10 border-t-[#F3BA2F] animate-spin"></div>
-                <BrainCircuit className="w-8 h-8 text-[#F3BA2F] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                <div className="w-16 h-16 rounded-full border-2 border-[#0ECB81]/10 border-t-[#0ECB81] animate-spin"></div>
+                <Cpu className="w-8 h-8 text-[#0ECB81] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
               </div>
               <div className="space-y-2 text-center">
-                <p className="text-xs font-black text-[#F3BA2F] tracking-[0.2em] uppercase">Computando Contexto</p>
+                <p className="text-xs font-black text-[#0ECB81] tracking-[0.2em] uppercase">Processando Heurística</p>
                 <div className="flex gap-1 justify-center">
-                  <div className="w-1 h-1 bg-[#F3BA2F] animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-1 h-1 bg-[#F3BA2F] animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-1 h-1 bg-[#F3BA2F] animate-bounce"></div>
+                  <div className="w-1 h-1 bg-[#0ECB81] animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1 h-1 bg-[#0ECB81] animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1 h-1 bg-[#0ECB81] animate-bounce"></div>
                 </div>
               </div>
             </motion.div>
@@ -189,7 +184,7 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
                   <p className="text-xs text-rose-500/70">{error}</p>
                 </div>
                 <button 
-                  onClick={getAIInsight}
+                  onClick={getLocalInsight}
                   className="mt-2 text-xs font-bold text-rose-500 hover:underline"
                 >
                   Tentar novamente
@@ -207,12 +202,14 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
               <div className="markdown-body">
                 <ReactMarkdown 
                   components={{
+                    h3: ({children}) => <h3 className="text-[#0ECB81] text-base font-bold mb-4 flex items-center gap-2">{children}</h3>,
+                    h4: ({children}) => <h4 className="text-white text-sm font-bold mb-2 mt-4 flex items-center gap-2 border-l-2 border-[#0ECB81] pl-2">{children}</h4>,
                     p: ({children}) => <p className="text-[#EAECEF] text-sm leading-relaxed mb-4 font-medium">{children}</p>,
-                    strong: ({children}) => <strong className="text-[#F3BA2F] font-bold">{children}</strong>,
+                    strong: ({children}) => <strong className="text-[#0ECB81] font-bold">{children}</strong>,
                     ul: ({children}) => <ul className="space-y-3 mb-4">{children}</ul>,
                     li: ({children}) => (
                       <li className="flex gap-3 text-sm text-[#EAECEF] leading-snug">
-                        <span className="text-[#F3BA2F] mt-1 shrink-0">●</span>
+                        <span className="text-[#0ECB81] mt-1 shrink-0 font-bold">»</span>
                         <span>{children}</span>
                       </li>
                     ),
@@ -225,11 +222,13 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
               <div className="mt-8 pt-6 border-t border-[#2B2F36] flex justify-between items-center">
                  <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-[#0ECB81] shadow-[0_0_8px_#0ECB81]"></div>
-                    <span className="text-[10px] text-[#848E9C] font-black uppercase tracking-widest">Estratégia Validada</span>
+                    <span className="text-[10px] text-[#848E9C] font-black uppercase tracking-widest">
+                       Motor: Krypton Logic (Off-Cloud)
+                    </span>
                  </div>
                  <div className="flex items-center gap-1.5 opacity-60">
                     <TrendingUp className="w-3 h-3 text-[#0ECB81]" />
-                    <span className="text-[9px] text-white font-mono font-bold italic">Krypton-AI v1</span>
+                    <span className="text-[9px] text-white font-mono font-bold italic">v2.0.local</span>
                  </div>
               </div>
             </motion.div>
@@ -239,3 +238,4 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
     </div>
   );
 }
+
