@@ -26,7 +26,7 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
       const apiKey = typeof rawKey === 'string' ? rawKey.trim() : null;
 
       if (!apiKey) {
-        throw new Error('Chave da IA não encontrada. No Vercel, adicione VITE_GEMINI_API_KEY.');
+        throw new Error('API Key ausente. Usando motor local...');
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -42,54 +42,51 @@ export function KryptonAdvisor({ stats, transactions }: Props) {
       `;
 
       let text = "";
-      let lastError: any = null;
-
-      // Lista de modelos para tentar em ordem de prioridade
-      // gemini-1.5-flash em v1beta costuma ser o mais resiliente a quotas 'limit 0'
-      const configs = [
-        { model: "gemini-1.5-flash", version: "v1beta" },
-        { model: "gemini-2.0-flash", version: "v1beta" },
-        { model: "gemini-1.5-flash", version: "v1" }
-      ];
-
-      for (const config of configs) {
-        try {
-          const model = genAI.getGenerativeModel(
-            { model: config.model },
-            { apiVersion: config.version as any }
-          );
-          const result = await model.generateContent(prompt);
-          text = result.response.text();
-          if (text) break;
-        } catch (err: any) {
-          lastError = err;
-          console.warn(`Falha no modelo ${config.model} (${config.version}):`, err.message);
-          // Se for erro de quota (429), continuamos para o próximo modelo
-          if (err.message?.includes('429')) continue;
-          // Se for erro de permissão ou não encontrado, continuamos
-          continue;
-        }
+      
+      // Tentamos o Google AI Studio
+      try {
+        const model = genAI.getGenerativeModel(
+          { model: "gemini-2.0-flash" },
+          { apiVersion: "v1beta" }
+        );
+        const result = await model.generateContent(prompt);
+        text = result.response.text();
+      } catch (aiErr: any) {
+        console.warn('Google AI Studio indisponível, acionando Motor Local:', aiErr.message);
+        // Se falhar (429 ou 404), o catch externo vai lidar com isso gerando o fallback local
+        throw aiErr;
       }
 
       if (text) {
         setInsight(text);
         setHasRequested(true);
-      } else {
-        throw lastError || new Error('Não foi possível gerar uma análise.');
       }
     } catch (err: any) {
-      console.error('Advisor Error:', err);
-      const errorMessage = err.message || '';
+      console.error('Advisor Engine Switch:', err);
       
-      if (errorMessage.includes('429')) {
-        setError('Quota Excedida: O Google AI Studio limitou o uso gratuito. Tente novamente em alguns minutos ou verifique sua chave.');
-      } else if (errorMessage.includes('403') || errorMessage.includes('PERMISSION_DENIED')) {
-        setError('Erro de Permissão (403): Verifique se a API está ativa no Cloud Console para este projeto.');
-      } else if (errorMessage.includes('404')) {
-        setError('Modelo não disponível (404). Verifique se o modelo está selecionado corretamente no AI Studio.');
-      } else {
-        setError(errorMessage || 'Falha ao conectar com o Advisor.');
+      // MOTOR DE INSIGHT LOCAL (Fallback Definitivo)
+      // Se a IA do Google falhar, calculamos o melhor conselho matematicamente
+      let localAdvice = "### 🧠 Krypton Insight (Motor Local)\n\n";
+      
+      const btc = stats.find(s => s.asset === 'BTC');
+      const usdc = stats.find(s => s.asset === 'USDC');
+
+      if (btc) {
+        if (btc.profitOrLossPercent < -10) {
+          localAdvice += `**Oportunidade em BTC detected!** Seu preço médio está acima do mercado. Considere um aporte fracionado (DCA) para baixar seu custo médio enquanto o ativo está "descontado".\n\n`;
+        } else if (btc.profitOrLossPercent > 15) {
+          localAdvice += `**Realização de Lucro em BTC?** Você está com mais de 15% de ganho. Pode ser prudente realizar 20% do lucro e converter para USDC, aguardando uma correção para recomprar.\n\n`;
+        } else {
+          localAdvice += `**Estratégia de Hold para BTC.** O preço está estável em relação ao seu custo. Mantenha a posição e aguarde uma tendência mais clara.\n\n`;
+        }
       }
+
+      if (usdc) {
+        localAdvice += `**Gestão de USDC:** Sua reserva de valor está disponível. Recomendamos manter ao menos 20% do patrimônio em USDC para aproveitar janelas de oportunidade no BTC.`;
+      }
+
+      setInsight(localAdvice);
+      setHasRequested(true);
     } finally {
       setLoading(false);
     }
